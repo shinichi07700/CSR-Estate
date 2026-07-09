@@ -126,20 +126,17 @@ function periodFor(preset, rows){
   switch(preset){
     case "thisMonth":  return {curFrom:som,curTo:eom,cmpFrom:lm_som,cmpTo:lm_eom, label:`${monthName(som)} ${y}`, cmpLabel:`${monthName(lm_som)}`};
     case "lastMonth":  return {curFrom:lm_som,curTo:lm_eom,cmpFrom:new Date(y,m-2,1),cmpTo:new Date(y,m-1,0), label:`${monthName(lm_som)} ${lm_som.getFullYear()}`, cmpLabel:"prior month"};
-    case "lastQuarter": {
+    case "thisQuarter": {
       const curQ = Math.floor(maxD.getMonth() / 3);
-      let qY = y;
-      let lastQ = curQ - 1;
-      if(lastQ < 0) { lastQ = 3; qY = y - 1; }
-      const qCurFrom = new Date(qY, lastQ * 3, 1);
-      const qCurTo   = new Date(qY, (lastQ + 1) * 3, 0);
-      const qCmpFrom = new Date(qY - 1, lastQ * 3, 1);
-      const qCmpTo   = new Date(qY - 1, (lastQ + 1) * 3, 0);
-      const qName = ["Q1","Q2","Q3","Q4"][lastQ];
+      const qCurFrom = new Date(y, curQ * 3, 1);
+      const qCurTo   = maxD;
+      const qCmpFrom = new Date(y - 1, curQ * 3, 1);
+      const qCmpTo   = new Date(y - 1, maxD.getMonth(), maxD.getDate());
+      const qName = ["Q1","Q2","Q3","Q4"][curQ];
       return {
         curFrom: qCurFrom, curTo: qCurTo, cmpFrom: qCmpFrom, cmpTo: qCmpTo,
-        label: `Last Quarter: ${qName} ${qY} vs ${qY-1}`,
-        cmpLabel: `${qName} ${qY-1}`
+        label: `This Quarter: ${qName} ${y} vs ${y-1}`,
+        cmpLabel: `${qName} ${y-1}`
       };
     }
     case "yoy":        return {curFrom:som,curTo:eom,cmpFrom:ly_som,cmpTo:ly_eom, label:`YoY: ${monthName(som)} ${y} vs ${y-1}`, cmpLabel:`${monthName(som)} ${y-1}`};

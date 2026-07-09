@@ -73,6 +73,7 @@
     <button class="tab-btn active" data-tab="harvest">Harvest & Production</button>
     <button class="tab-btn" data-tab="fert">Fertilizer / Pemupukan</button>
     <button class="tab-btn" data-tab="ops">Weather & Ops</button>
+    <button class="tab-btn" data-tab="compare">Estate Comparison</button>
   </div>
 </nav>
 
@@ -307,6 +308,106 @@
   <section class="card p-6">
     <div class="text-sm font-semibold mb-3">Weather & Operations Highlights</div>
     <div id="oHighlights" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm"></div>
+  </section>
+</div>
+
+<!-- ESTATE COMPARISON PANEL -->
+<div class="tab-panel space-y-6" data-panel="compare">
+  <!-- Selector Row -->
+  <section class="card p-4 flex flex-wrap items-center justify-between gap-4 bg-slate-900/40">
+    <div>
+      <div class="text-sm font-semibold">Estate Comparison</div>
+      <div class="text-xs text-slate-500">Side-by-side executive review for the selected period</div>
+    </div>
+    <div class="flex items-center gap-4 flex-wrap">
+      <div class="flex items-center gap-2">
+        <label for="kebunA" class="text-xs text-slate-400">Estate A:</label>
+        <select id="kebunA" class="bg-slate-950 border border-slate-800 text-slate-100 rounded px-2 py-1 text-xs"></select>
+      </div>
+      <div class="text-slate-600 text-sm font-bold">vs</div>
+      <div class="flex items-center gap-2">
+        <label for="kebunB" class="text-xs text-slate-400">Estate B:</label>
+        <select id="kebunB" class="bg-slate-950 border border-slate-800 text-slate-100 rounded px-2 py-1 text-xs"></select>
+      </div>
+    </div>
+  </section>
+
+  <!-- Side-by-Side KPI Table -->
+  <section class="card p-6 overflow-x-auto">
+    <table class="w-full text-sm text-left border-collapse">
+      <thead>
+        <tr class="border-b border-slate-800 text-xs text-slate-500 uppercase tracking-wider">
+          <th class="py-3 px-4">Metric</th>
+          <th class="py-3 px-4 text-right text-emerald-400 font-bold" id="compareHdrA">Estate A</th>
+          <th class="py-3 px-4 text-right text-amber-400 font-bold" id="compareHdrB">Estate B</th>
+          <th class="py-3 px-4 text-center">Comparison</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800/50">
+        <tr>
+          <td class="py-3.5 px-4 font-medium">Tonnage Shipped (FFB)</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cTonA">—</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cTonB">—</td>
+          <td class="py-3.5 px-4 text-center mono" id="cTonDiff">—</td>
+        </tr>
+        <tr>
+          <td class="py-3.5 px-4 font-medium">Yield / Ha</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cYieldA">—</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cYieldB">—</td>
+          <td class="py-3.5 px-4 text-center mono" id="cYieldDiff">—</td>
+        </tr>
+        <tr>
+          <td class="py-3.5 px-4 font-medium">BJR (Avg Bunch Weight)</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cBjrA">—</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cBjrB">—</td>
+          <td class="py-3.5 px-4 text-center mono" id="cBjrDiff">—</td>
+        </tr>
+        <tr>
+          <td class="py-3.5 px-4 font-medium">Loss Rate</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cLossA">—</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cLossB">—</td>
+          <td class="py-3.5 px-4 text-center mono" id="cLossDiff">—</td>
+        </tr>
+        <tr>
+          <td class="py-3.5 px-4 font-medium">Labor Productivity (jjg/HK)</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cHkA">—</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cHkB">—</td>
+          <td class="py-3.5 px-4 text-center mono" id="cHkDiff">—</td>
+        </tr>
+        <tr>
+          <td class="py-3.5 px-4 font-medium">Accumulated Rainfall (mm)</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cRainA">—</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cRainB">—</td>
+          <td class="py-3.5 px-4 text-center mono" id="cRainDiff">—</td>
+        </tr>
+        <tr>
+          <td class="py-3.5 px-4 font-medium">Workforce Attendance (Hadir %)</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cAttendA">—</td>
+          <td class="py-3.5 px-4 text-right font-semibold" id="cAttendB">—</td>
+          <td class="py-3.5 px-4 text-center mono" id="cAttendDiff">—</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Insights section -->
+  <section class="card p-6">
+    <div class="text-sm font-semibold mb-3">Comparative Highlights</div>
+    <div id="compareHighlights" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm"></div>
+  </section>
+
+  <!-- Side-by-Side Charts -->
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="card p-5">
+      <div class="text-sm font-semibold">Daily Tonnage Comparison</div>
+      <div class="text-xs text-slate-500 mb-2">FFB tonnage shipped per day (t) — Estate A vs Estate B</div>
+      <div id="cChartTrend" class="h-80"></div>
+    </div>
+    <div class="card p-5">
+      <div class="text-sm font-semibold">Operational Profile Comparison</div>
+      <div class="text-xs text-slate-500 mb-2">Normalized efficiency profile (0-100) — Estate A vs Estate B</div>
+      <div id="cChartRadar" class="h-80"></div>
+    </div>
   </section>
 </div>
 

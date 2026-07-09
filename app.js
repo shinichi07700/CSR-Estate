@@ -4,7 +4,7 @@ const GIDS = { harvest: 0, fert: 1757651789, ops: 881602558 };
 const csvUrl = gid => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
 const proxy  = u => `https://corsproxy.io/?${encodeURIComponent(u)}`;
 
-const state = { rows: [], fert: [], ops: [], preset: "thisMonth", from: null, to: null, kebun: "__all", tab: "harvest" };
+const state = { rows: [], fert: [], ops: [], preset: "thisMonth", from: null, to: null, kebun: "__all", tab: "harvest", kebunA: null, kebunB: null };
 const charts = {};
 
 /* ---------- Thresholds & benchmarks (single source of truth) ---------- */
@@ -108,6 +108,18 @@ async function loadData(){
   ])).sort();
   const sel = document.getElementById("kebunSel");
   sel.innerHTML = `<option value="__all">All Estates</option>` + estates.map(e=>`<option value="${e}">${e}</option>`).join("");
+  const selA = document.getElementById("kebunA");
+  const selB = document.getElementById("kebunB");
+  if(selA && selB){
+    selA.innerHTML = estates.map(e=>`<option value="${e}">${e}</option>`).join("");
+    selB.innerHTML = estates.map(e=>`<option value="${e}">${e}</option>`).join("");
+    if(estates.length >= 2){
+      selA.value = estates[0];
+      selB.value = estates[1];
+    }
+    state.kebunA = selA.value;
+    state.kebunB = selB.value;
+  }
 }
 
 /* ---------- Period logic ---------- */
@@ -390,9 +402,10 @@ function render(){
   // Highlights
   renderHighlights(M, C, E, label, cmpLabel);
 
-  // Also refresh the other two tabs so switching is instant
+  // Also refresh the other tabs so switching is instant
   renderFert(curFrom, curTo, cmpFrom, cmpTo, label, cmpLabel);
   renderOps(curFrom, curTo, cmpFrom, cmpTo, label, cmpLabel);
+  renderCompare(curFrom, curTo, label);
 }
 
 /* ---------- FERTILIZER ---------- */
@@ -717,6 +730,173 @@ function renderHighlights(M,C,E,label,cmpLabel){
   `).join("");
 }
 
+function renderCompare(curFrom, curTo, label){
+  if(!state.kebunA || !state.kebunB) return;
+  
+  document.getElementById("compareHdrA").textContent = state.kebunA;
+  document.getElementById("compareHdrB").textContent = state.kebunB;
+
+  const curA = filter(state.rows, curFrom, curTo, state.kebunA);
+  const curB = filter(state.rows, curFrom, curTo, state.kebunB);
+  
+  const MA = metrics(curA), MB = metrics(curB);
+
+  const opsA = filter(state.ops, curFrom, curTo, state.kebunA);
+  const opsB = filter(state.ops, curFrom, curTo, state.kebunB);
+  
+  const rainA = opsA.reduce((sum, r)=>sum+r.rainHi, 0);
+  const rainB = opsB.reduce((sum, r)=>sum+r.rainHi, 0);
+
+  const activeAttA = opsA.filter(r=>r.hadir>0);
+  const attendA = activeAttA.length ? activeAttA.reduce((sum, r)=>sum+r.hadir, 0)/activeAttA.length : 0;
+  const activeAttB = opsB.filter(r=>r.hadir>0);
+  const attendB = activeAttB.length ? activeAttB.reduce((sum, r)=>sum+r.hadir, 0)/activeAttB.length : 0;
+
+  const setVal = (idA, idB, idDiff, valA, valB, dPlaces, suffix="", inverse=false) => {
+    const elA = document.getElementById(idA);
+    const elB = document.getElementById(idB);
+    const elDiff = document.getElementById(idDiff);
+    
+    elA.textContent = valA ? valA.toFixed(dPlaces) + suffix : "—";
+    elB.textContent = valB ? valB.toFixed(dPlaces) + suffix : "—";
+    
+    const p = pct(valA, valB);
+    if(p === null) {
+      elDiff.textContent = "—";
+      elDiff.className = "mono text-slate-500 text-center";
+    } else {
+      const arrow = p > 0 ? "▲" : (p < 0 ? "▼" : "▬");
+      const diffVal = Math.abs(p).toFixed(1) + "%";
+      elDiff.textContent = `${arrow} ${diffVal}`;
+      const isGood = inverse ? p < 0 : p > 0;
+      elDiff.className = "mono text-center " + (p === 0 ? "text-slate-400" : (isGood ? "text-green-400" : "text-red-400"));
+    }
+  };
+
+  setVal("cTonA", "cTonB", "cTonDiff", MA.tonT, MB.tonT, 1, " t");
+  setVal("cYieldA", "cYieldB", "cYieldDiff", MA.yieldTHa, MB.yieldTHa, 2, " t/Ha");
+  setVal("cBjrA", "cBjrB", "cBjrDiff", MA.bjr, MB.bjr, 2, " kg");
+  setVal("cLossA", "cLossB", "cLossDiff", MA.loss, MB.loss, 1, "%", true);
+  setVal("cHkA", "cHkB", "cHkDiff", MA.hkProd, MB.hkProd, 0);
+  setVal("cRainA", "cRainB", "cRainDiff", rainA, rainB, 0, " mm");
+  setVal("cAttendA", "cAttendB", "cAttendDiff", attendA, attendB, 1, "%");
+
+  const insights = [];
+  const push = (tone, title, body) => insights.push({tone, title, body});
+
+  if (MA.tonT && MB.tonT) {
+    const diff = pct(MA.tonT, MB.tonT);
+    if (diff > 5) {
+      push("good", `${state.kebunA} leading in tonnage`, `${state.kebunA} shipped ${diff.toFixed(1)}% more FFB than ${state.kebunB} (${MA.tonT.toFixed(1)}t vs ${MB.tonT.toFixed(1)}t).`);
+    } else if (diff < -5) {
+      push("good", `${state.kebunB} leading in tonnage`, `${state.kebunB} shipped ${Math.abs(diff).toFixed(1)}% more FFB than ${state.kebunA} (${MB.tonT.toFixed(1)}t vs ${MA.tonT.toFixed(1)}t).`);
+    }
+  }
+
+  if (MA.yieldTHa && MB.yieldTHa) {
+    const diff = pct(MA.yieldTHa, MB.yieldTHa);
+    if (diff > 5) {
+      push("good", `${state.kebunA} higher land productivity`, `Yield/Ha is ${diff.toFixed(1)}% higher at ${state.kebunA} (${MA.yieldTHa.toFixed(2)} t/Ha vs ${MB.yieldTHa.toFixed(2)} t/Ha).`);
+    } else if (diff < -5) {
+      push("good", `${state.kebunB} higher land productivity`, `Yield/Ha is ${Math.abs(diff).toFixed(1)}% higher at ${state.kebunB} (${MB.yieldTHa.toFixed(2)} t/Ha vs ${MA.yieldTHa.toFixed(2)} t/Ha).`);
+    }
+  }
+
+  if (MA.loss && MB.loss) {
+    if (MA.loss > MB.loss + 2) {
+      push("bad", `Elevated crop loss at ${state.kebunA}`, `Loss rate at ${state.kebunA} is ${MA.loss.toFixed(1)}% vs ${state.kebunB}'s ${MB.loss.toFixed(1)}%. Inspect evacuation discipline.`);
+    } else if (MB.loss > MA.loss + 2) {
+      push("bad", `Elevated crop loss at ${state.kebunB}`, `Loss rate at ${state.kebunB} is ${MB.loss.toFixed(1)}% vs ${state.kebunA}'s ${MA.loss.toFixed(1)}%. Inspect evacuation discipline.`);
+    }
+  }
+
+  if (rainA || rainB) {
+    if (rainA > rainB * 1.5 && rainA > 50) {
+      push("warn", `Wet weather at ${state.kebunA}`, `${state.kebunA} received significantly more rain (${rainA.toFixed(0)}mm vs ${rainB.toFixed(0)}mm), which may impact harvest paths & restan evacuation.`);
+    } else if (rainB > rainA * 1.5 && rainB > 50) {
+      push("warn", `Wet weather at ${state.kebunB}`, `${state.kebunB} received significantly more rain (${rainB.toFixed(0)}mm vs ${rainA.toFixed(0)}mm), which may impact harvest paths & restan evacuation.`);
+    }
+  }
+
+  const hlEl = document.getElementById("compareHighlights");
+  hlEl.innerHTML = insights.map(h => `
+    <div class="highlight-item ${h.tone}">
+      <div class="font-semibold text-slate-100">${h.title}</div>
+      <div class="text-slate-400 text-xs mt-0.5">${h.body}</div>
+    </div>`).join("") || `<div class="text-slate-500 text-xs col-span-2">No notable comparative anomalies identified for this period.</div>`;
+
+  const dailyA = byDay(curA);
+  const dailyB = byDay(curB);
+  
+  const dateSet = new Set([...dailyA.map(d=>d.date), ...dailyB.map(d=>d.date)]);
+  const sortedDates = Array.from(dateSet).sort();
+
+  const getDayTonMap = (dailyList) => new Map(dailyList.map(d => [d.date, d.ton]));
+  const mapA = getDayTonMap(dailyA);
+  const mapB = getDayTonMap(dailyB);
+
+  const dataA = sortedDates.map(d => (mapA.get(d) || 0) / 1000);
+  const dataB = sortedDates.map(d => (mapB.get(d) || 0) / 1000);
+
+  const trend = charts.cTrend || (charts.cTrend = echarts.init(document.getElementById("cChartTrend")));
+  trend.setOption({
+    ...baseOpt,
+    tooltip:{trigger:"axis",backgroundColor:"#0b1220",borderColor:"#1e293b",textStyle:{color:"#e5edff"}, valueFormatter:v=>v.toFixed(1)+" t"},
+    legend:{data:[state.kebunA, state.kebunB], textStyle:{color:"#94a3b8"}, top:0},
+    xAxis:{type:"category",data:sortedDates.map(x=>x.slice(5)),axisLine:{lineStyle:{color:"#334155"}},axisLabel:{color:"#94a3b8",fontSize:11}},
+    yAxis:{type:"value",axisLabel:{color:"#94a3b8",formatter:v=>v+"t"},splitLine:{lineStyle:{color:"#1e293b"}}},
+    series:[
+      {name:state.kebunA, type:"line", smooth:true, data:dataA, symbol:"circle", symbolSize:6, lineStyle:{color:"#3b82f6", width:3}, itemStyle:{color:"#3b82f6"}},
+      {name:state.kebunB, type:"line", smooth:true, data:dataB, symbol:"square", symbolSize:6, lineStyle:{color:"#f59e0b", width:3}, itemStyle:{color:"#f59e0b"}}
+    ]
+  }, true);
+
+  const bounds = {
+    ton: Math.max(MA.tonT, MB.tonT, 1),
+    bjr: 15,
+    yield: 5,
+    hk: 250,
+    invLoss: 100,
+  };
+  const scoresA = [
+    Math.min(100, MA.tonT/bounds.ton*100),
+    Math.min(100, MA.bjr/bounds.bjr*100),
+    Math.min(100, MA.yieldTHa/bounds.yield*100),
+    Math.min(100, MA.hkProd/bounds.hk*100),
+    Math.max(0, 100 - MA.loss)
+  ];
+  const scoresB = [
+    Math.min(100, MB.tonT/bounds.ton*100),
+    Math.min(100, MB.bjr/bounds.bjr*100),
+    Math.min(100, MB.yieldTHa/bounds.yield*100),
+    Math.min(100, MB.hkProd/bounds.hk*100),
+    Math.max(0, 100 - MB.loss)
+  ];
+
+  const rad = charts.cRadar || (charts.cRadar = echarts.init(document.getElementById("cChartRadar")));
+  rad.setOption({
+    tooltip:{backgroundColor:"#0b1220",borderColor:"#1e293b",textStyle:{color:"#e5edff"}},
+    legend:{data:[state.kebunA, state.kebunB],textStyle:{color:"#94a3b8"},top:0},
+    radar:{
+      indicator:[
+        {name:"Tonnage",max:100},{name:"BJR",max:100},{name:"Yield/Ha",max:100},
+        {name:"HK Prod",max:100},{name:"Low Loss",max:100}
+      ],
+      axisName:{color:"#94a3b8",fontSize:11},
+      splitLine:{lineStyle:{color:"#1e293b"}},
+      splitArea:{areaStyle:{color:["#0f172a","#111a2e"]}},
+      axisLine:{lineStyle:{color:"#1e293b"}}
+    },
+    series:[{
+      type:"radar",
+      data:[
+        {value:scoresA,name:state.kebunA,areaStyle:{color:"rgba(59,130,246,0.35)"},lineStyle:{color:"#3b82f6",width:2},itemStyle:{color:"#3b82f6"}},
+        {value:scoresB,name:state.kebunB,areaStyle:{color:"rgba(245,158,11,0.25)"},lineStyle:{color:"#f59e0b",width:2},itemStyle:{color:"#f59e0b"}}
+      ]
+    }]
+  }, true);
+}
+
 /* ---------- UI wiring ---------- */
 function wireUI(){
   document.querySelectorAll("[data-preset]").forEach(b=>{
@@ -731,6 +911,8 @@ function wireUI(){
   document.getElementById("dFrom").addEventListener("change", e=>{ state.from=e.target.value; if(state.preset==="custom") render(); });
   document.getElementById("dTo").addEventListener("change", e=>{ state.to=e.target.value; if(state.preset==="custom") render(); });
   document.getElementById("kebunSel").addEventListener("change", e=>{ state.kebun=e.target.value; render(); });
+  document.getElementById("kebunA").addEventListener("change", e=>{ state.kebunA=e.target.value; render(); });
+  document.getElementById("kebunB").addEventListener("change", e=>{ state.kebunB=e.target.value; render(); });
   document.getElementById("refreshBtn").addEventListener("click", async ()=>{ await loadData(); render(); });
   window.addEventListener("resize", ()=>{ Object.values(charts).forEach(c=>c.resize()); });
 

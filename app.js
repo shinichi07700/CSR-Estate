@@ -410,7 +410,7 @@ function renderFert(curFrom,curTo,cmpFrom,cmpTo,label,cmpLabel){
     const o = prodMap.get(key); o.kgHi += r.kgHi; o.kgSdbi += r.kgSdbi;
   });
   const prodsAll = Array.from(prodMap.values());
-  const usingHi = prodsAll.some(p=>p.kgHi>0);
+  const usingHi = state.preset !== "ytd";
   const sortKey = usingHi ? "kgHi" : "kgSdbi";
   let prods = prodsAll.sort((a,b)=>b[sortKey]-a[sortKey]).slice(0,12);
   const chartProd = charts.fProd || (charts.fProd = echarts.init(document.getElementById("fChartProduct")));

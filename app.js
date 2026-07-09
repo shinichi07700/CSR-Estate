@@ -43,6 +43,12 @@ function parseCSV(text){
   return body.filter(r=>r.length>1).map(r=>Object.fromEntries(hdr.map((h,idx)=>[h.trim(),(r[idx]||"").trim()])));
 }
 const num = v => { if(v===null||v===undefined||v==="") return 0; const n=parseFloat(String(v).replace(/,/g,'')); return isFinite(n)?n:0; };
+function parseLocalDate(dateStr){
+  if(!dateStr) return null;
+  const parts = dateStr.split("-").map(Number);
+  if(parts.length !== 3 || parts.some(isNaN)) return null;
+  return new Date(parts[0], parts[1]-1, parts[2]);
+}
 const fmt = (v,d=0) => {
   if(!isFinite(v)) return "—";
   if(Math.abs(v)>=1e6) return (v/1e6).toFixed(2)+"M";
@@ -124,8 +130,8 @@ function periodFor(preset, rows){
     case "yoy":        return {curFrom:som,curTo:eom,cmpFrom:ly_som,cmpTo:ly_eom, label:`YoY: ${monthName(som)} ${y} vs ${y-1}`, cmpLabel:`${monthName(som)} ${y-1}`};
     case "ytd":        return {curFrom:soy,curTo:maxD,cmpFrom:soy_prev,cmpTo:ytd_prev_end, label:`YTD ${y} vs YTD ${y-1}`, cmpLabel:`YTD ${y-1}`};
     case "custom": {
-      const f = state.from ? new Date(state.from) : som;
-      const t = state.to   ? new Date(state.to)   : eom;
+      const f = parseLocalDate(state.from) || som;
+      const t = parseLocalDate(state.to)   || eom;
       const days = Math.max(1, Math.round((t-f)/86400000));
       const cmpTo = new Date(f); cmpTo.setDate(cmpTo.getDate()-1);
       const cmpFrom = new Date(cmpTo); cmpFrom.setDate(cmpFrom.getDate()-days);
@@ -151,11 +157,9 @@ function metrics(rows){
   const luas  = rows.reduce((a,r)=>a+r.luas,0);
   const hk    = rows.reduce((a,r)=>a+r.hk,0);
   const brond = rows.reduce((a,r)=>a+r.brond,0);
-  // BJR should be weighted by jjg_kirim (kg / jjg)
-  const bjr = jjgK ? (ton*1000)/jjgK/1000 : (rows.length? rows.reduce((a,r)=>a+r.bjr,0)/rows.length : 0);
-  // But tonase is in kg? Data shows tonase_kirim like 259020 for 21004 jjg -> 12.33 kg/jjg matches BJR. So tonase is in kg.
+  // BJR should be weighted by jjg_kirim (kg / jjg). Fallback to average bjr of rows if jjgK is 0.
   const tonKg = ton; const tonT = ton/1000;
-  const bjrKg = jjgK ? tonKg/jjgK : 0;
+  const bjrKg = jjgK ? tonKg/jjgK : (rows.length ? rows.reduce((a,r)=>a+r.bjr,0)/rows.length : 0);
   const yieldTHa = luas ? tonT/luas : 0;
   const hkProd = hk ? jjgP/hk : 0;
   const loss = jjgP ? ((restan+afkir)/jjgP)*100 : 0;
@@ -405,8 +409,10 @@ function renderFert(curFrom,curTo,cmpFrom,cmpTo,label,cmpLabel){
     if(!prodMap.has(key)) prodMap.set(key,{p:key,kgHi:0,kgSdbi:0});
     const o = prodMap.get(key); o.kgHi += r.kgHi; o.kgSdbi += r.kgSdbi;
   });
-  let prods = Array.from(prodMap.values()).sort((a,b)=>(b.kgHi||b.kgSdbi)-(a.kgHi||a.kgSdbi)).slice(0,12);
-  const usingHi = prods.some(p=>p.kgHi>0);
+  const prodsAll = Array.from(prodMap.values());
+  const usingHi = prodsAll.some(p=>p.kgHi>0);
+  const sortKey = usingHi ? "kgHi" : "kgSdbi";
+  let prods = prodsAll.sort((a,b)=>b[sortKey]-a[sortKey]).slice(0,12);
   const chartProd = charts.fProd || (charts.fProd = echarts.init(document.getElementById("fChartProduct")));
   chartProd.setOption({
     ...baseOpt,
@@ -643,11 +649,13 @@ function renderHighlights(M,C,E,label,cmpLabel){
     else push("warn","Production broadly flat", `Change of ${dTon.toFixed(1)}% vs ${cmpLabel} — within noise. Focus on quality metrics.`);
   }
 
-  if(M.bjr && C.bjr){
-    const dB = pct(M.bjr,C.bjr);
+  if(M.bjr){
     if(M.bjr < THRESHOLDS.bjr.amber) push("bad",`BJR below ${THRESHOLDS.bjr.amber} kg`, `Weighted BJR is ${M.bjr.toFixed(2)} kg — bunches are small/immature. Review harvest interval and ripeness standards.`);
-    else if(dB!==null && dB<=-5) push("warn","BJR trending down", `BJR fell ${Math.abs(dB).toFixed(1)}% — early sign of over-harvesting or age-mix shift.`);
     else if(M.bjr >= THRESHOLDS.bjr.blue) push("good","Strong BJR", `BJR at ${M.bjr.toFixed(2)} kg indicates good ripeness discipline.`);
+    if(C.bjr){
+      const dB = pct(M.bjr,C.bjr);
+      if(dB!==null && dB<=-5) push("warn","BJR trending down", `BJR fell ${Math.abs(dB).toFixed(1)}% — early sign of over-harvesting or age-mix shift.`);
+    }
   }
 
   if(M.loss > THRESHOLDS.loss.warn) push("bad","Loss rate elevated", `Restan + afkir = ${M.loss.toFixed(1)}% of jjg panen. Every 1pp is real cash — target under ${THRESHOLDS.loss.good}%.`);

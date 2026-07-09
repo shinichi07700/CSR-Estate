@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Palm Oil Executive Dashboard — Director / GM View</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b1220; --panel:#111a2e; --panel2:#0f172a; --line:#1e293b;
+    --ink:#e5edff; --sub:#8ea0c2; --mute:#5f7396;
+    --green:#22c55e; --red:#ef4444; --amber:#f59e0b; --blue:#60a5fa; --violet:#a78bfa; --teal:#2dd4bf;
+  }
+  html,body{background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .card{background:linear-gradient(180deg,#111a2e 0%,#0e1729 100%);border:1px solid var(--line);border-radius:16px;}
+  .chip{border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--sub);cursor:pointer;transition:.15s;}
+  .chip:hover{color:#fff;border-color:#334155;}
+  .chip.active{background:#1d4ed8;color:#fff;border-color:#3b82f6;}
+  .kpi-val{font-size:34px;font-weight:700;letter-spacing:-.02em;}
+  .kpi-label{font-size:11px;letter-spacing:.14em;color:var(--mute);text-transform:uppercase;}
+  .delta-up{color:var(--green);} .delta-down{color:var(--red);} .delta-flat{color:var(--sub);}
+  .divider{height:1px;background:linear-gradient(90deg,transparent,#1e293b,transparent);}
+  .glow-blue{box-shadow:0 0 40px -12px rgba(59,130,246,.35) inset;}
+  .highlight-item{border-left:3px solid #3b82f6;padding-left:12px;}
+  .highlight-item.warn{border-color:var(--amber);}
+  .highlight-item.bad{border-color:var(--red);}
+  .highlight-item.good{border-color:var(--green);}
+  input[type=date]{background:#0b1220;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:6px 10px;font-size:12px;color-scheme:dark;}
+  select{background:#0b1220;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:6px 10px;font-size:12px;}
+  .skeleton{background:linear-gradient(90deg,#111a2e,#1a2542,#111a2e);background-size:200% 100%;animation:sk 1.4s infinite;}
+  @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  .grid-bg{background-image:radial-gradient(circle at 1px 1px,#1e293b 1px,transparent 0);background-size:24px 24px;}
+  .tab-btn{padding:10px 18px;font-size:13px;color:#94a3b8;border-bottom:2px solid transparent;transition:.15s;font-weight:500;}
+  .tab-btn:hover{color:#e5edff;}
+  .tab-btn.active{color:#60a5fa;border-color:#3b82f6;}
+  .tab-panel{display:none;} .tab-panel.active{display:block;}
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="border-b border-slate-800/70 bg-slate-950/40 backdrop-blur sticky top-0 z-30">
+  <div class="max-w-[1440px] mx-auto px-6 py-4 flex items-center justify-between flex-wrap gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-lg font-bold">🌴</div>
+      <div>
+        <div class="text-xs uppercase tracking-[.22em] text-slate-400">Palm Oil Operations</div>
+        <div class="text-lg font-semibold">Director & GM Executive Dashboard</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <span id="rangeLabel" class="text-xs text-slate-400 mono mr-2">—</span>
+      <button class="chip active" data-preset="thisMonth">This Month</button>
+      <button class="chip" data-preset="lastMonth">Last Month</button>
+      <button class="chip" data-preset="mom">MoM (This vs Last)</button>
+      <button class="chip" data-preset="yoy">YoY (This Mo vs Last Yr Same Mo)</button>
+      <button class="chip" data-preset="ytd">YTD vs Last YTD</button>
+      <button class="chip" data-preset="custom">Custom</button>
+      <div id="customBox" class="hidden items-center gap-2">
+        <input type="date" id="dFrom"/><span class="text-slate-500 text-xs">→</span><input type="date" id="dTo"/>
+      </div>
+      <select id="kebunSel"><option value="__all">All Estates</option></select>
+      <button id="refreshBtn" class="chip" title="Refetch from Google Sheet">↻ Refresh</button>
+    </div>
+  </div>
+</header>
+
+<nav class="max-w-[1440px] mx-auto px-6 pt-4">
+  <div class="flex gap-2 border-b border-slate-800">
+    <button class="tab-btn active" data-tab="harvest">Harvest & Production</button>
+    <button class="tab-btn" data-tab="fert">Fertilizer / Pemupukan</button>
+    <button class="tab-btn" data-tab="ops">Weather & Ops</button>
+  </div>
+</nav>
+
+<main class="max-w-[1440px] mx-auto px-6 py-6 space-y-6">
+
+<div class="tab-panel active" data-panel="harvest" >
+
+  <!-- KPI ROW -->
+  <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="card p-5 glow-blue">
+      <div class="kpi-label">Tonnage Shipped (FFB)</div>
+      <div class="flex items-baseline gap-2 mt-2"><div id="kpiTon" class="kpi-val">—</div><span class="text-xs text-slate-500">t</span></div>
+      <div class="mt-2 text-xs flex items-center gap-2"><span id="kpiTonDelta" class="mono">—</span><span class="text-slate-500" id="kpiTonCmp">vs prior</span></div>
+      <div id="kpiTonSpark" class="h-10 mt-1"></div>
+    </div>
+    <div class="card p-5">
+      <div class="kpi-label">BJR — Avg Bunch Weight</div>
+      <div class="flex items-baseline gap-2 mt-2"><div id="kpiBjr" class="kpi-val">—</div><span class="text-xs text-slate-500">kg/jjg</span></div>
+      <div class="mt-2 text-xs flex items-center gap-2"><span id="kpiBjrDelta" class="mono">—</span><span class="text-slate-500">crop maturity index</span></div>
+      <div id="kpiBjrSpark" class="h-10 mt-1"></div>
+    </div>
+    <div class="card p-5">
+      <div class="kpi-label">Yield / Ha</div>
+      <div class="flex items-baseline gap-2 mt-2"><div id="kpiYield" class="kpi-val">—</div><span class="text-xs text-slate-500">t/Ha</span></div>
+      <div class="mt-2 text-xs flex items-center gap-2"><span id="kpiYieldDelta" class="mono">—</span><span class="text-slate-500">land productivity</span></div>
+      <div id="kpiYieldSpark" class="h-10 mt-1"></div>
+    </div>
+    <div class="card p-5">
+      <div class="kpi-label">Loss Rate (Restan + Afkir)</div>
+      <div class="flex items-baseline gap-2 mt-2"><div id="kpiLoss" class="kpi-val">—</div><span class="text-xs text-slate-500">%</span></div>
+      <div class="mt-2 text-xs flex items-center gap-2"><span id="kpiLossDelta" class="mono">—</span><span class="text-slate-500">of jjg panen</span></div>
+      <div id="kpiLossSpark" class="h-10 mt-1"></div>
+    </div>
+  </section>
+
+  <!-- SECONDARY KPI -->
+  <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="card p-4">
+      <div class="kpi-label">HK Productivity</div>
+      <div class="flex items-baseline gap-2 mt-1"><div id="kpiHk" class="text-2xl font-semibold">—</div><span class="text-xs text-slate-500">jjg/HK</span></div>
+    </div>
+    <div class="card p-4">
+      <div class="kpi-label">Brondolan Ratio</div>
+      <div class="flex items-baseline gap-2 mt-1"><div id="kpiBrond" class="text-2xl font-semibold">—</div><span class="text-xs text-slate-500">% of tonnage</span></div>
+    </div>
+    <div class="card p-4">
+      <div class="kpi-label">Luas Panen</div>
+      <div class="flex items-baseline gap-2 mt-1"><div id="kpiLuas" class="text-2xl font-semibold">—</div><span class="text-xs text-slate-500">Ha</span></div>
+    </div>
+    <div class="card p-4">
+      <div class="kpi-label">Active Estates</div>
+      <div class="flex items-baseline gap-2 mt-1"><div id="kpiEst" class="text-2xl font-semibold">—</div><span class="text-xs text-slate-500">reporting</span></div>
+    </div>
+  </section>
+
+  <!-- CHART ROW A -->
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="card p-5 lg:col-span-2">
+      <div class="flex items-center justify-between mb-2">
+        <div>
+          <div class="text-sm font-semibold">Daily Tonnage Trend</div>
+          <div class="text-xs text-slate-500">FFB tonnage shipped per day — current vs comparison period</div>
+        </div>
+        <div class="flex gap-2 text-xs"><span class="inline-flex items-center gap-1"><i class="w-2 h-2 rounded-full bg-blue-400 inline-block"></i>Current</span><span class="inline-flex items-center gap-1"><i class="w-2 h-2 rounded-full bg-slate-500 inline-block"></i>Compare</span></div>
+      </div>
+      <div id="chartTrend" class="h-72"></div>
+    </div>
+    <div class="card p-5">
+      <div class="text-sm font-semibold">Loss Composition</div>
+      <div class="text-xs text-slate-500 mb-2">Jjg breakdown: shipped vs restan vs afkir</div>
+      <div id="chartLoss" class="h-72"></div>
+    </div>
+  </section>
+
+  <!-- CHART ROW B -->
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="card p-5 lg:col-span-2">
+      <div class="text-sm font-semibold">Estate Performance — Tonnage & Yield/Ha</div>
+      <div class="text-xs text-slate-500 mb-2">Ranked by tonnage; yield/Ha overlay to spot underperformers</div>
+      <div id="chartEstate" class="h-80"></div>
+    </div>
+    <div class="card p-5">
+      <div class="text-sm font-semibold">BJR by Estate</div>
+      <div class="text-xs text-slate-500 mb-2">Bunch weight quality — higher = more mature crop</div>
+      <div id="chartBjr" class="h-80"></div>
+    </div>
+  </section>
+
+  <!-- CHART ROW C -->
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="card p-5">
+      <div class="text-sm font-semibold">Operational Efficiency Radar</div>
+      <div class="text-xs text-slate-500 mb-2">Normalized 0–100 — current vs comparison</div>
+      <div id="chartRadar" class="h-80"></div>
+    </div>
+    <div class="card p-5">
+      <div class="text-sm font-semibold">Estate Mix — Tonnage Contribution</div>
+      <div class="text-xs text-slate-500 mb-2">Where is our production concentrated?</div>
+      <div id="chartMix" class="h-80"></div>
+    </div>
+  </section>
+
+  <!-- HIGHLIGHTS -->
+  <section class="card p-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <div class="text-sm font-semibold">Executive Highlights</div>
+        <div class="text-xs text-slate-500">Auto-generated insights for Director / GM decision-making</div>
+      </div>
+      <div class="text-xs text-slate-500 mono" id="hlPeriodLabel">—</div>
+    </div>
+    <div id="highlights" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm"></div>
+  </section>
+
+  <section class="card p-4">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div class="text-xs uppercase tracking-[.22em] text-slate-500">Applied Thresholds &amp; Benchmarks</div>
+      <div id="thresholdChips" class="flex flex-wrap gap-2 text-[11px] mono"></div>
+    </div>
+  </section>
+
+</div><!-- /harvest panel -->
+
+<!-- FERTILIZER PANEL -->
+<div class="tab-panel space-y-6" data-panel="fert">
+  <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="card p-5">
+      <div class="kpi-label">Total Fertilizer Applied</div>
+      <div class="flex items-baseline gap-2 mt-2"><div id="fKpiKg" class="kpi-val">—</div><span class="text-xs text-slate-500">t</span></div>
+      <div class="mt-2 text-xs text-slate-500">Sum of kg_hi in period · <span id="fKpiKgDelta" class="mono"></span></div>
+    </div>
+    <div class="card p-5">
+      <div class="kpi-label">Area Fertilized</div>
+      <div class="flex items-baseline gap-2 mt-2"><div id="fKpiHa" class="kpi-val">—</div><span class="text-xs text-slate-500">Ha</span></div>
+      <div class="mt-2 text-xs text-slate-500">Sum of ha_hi</div>
+    </div>
+    <div class="card p-5">
+      <div class="kpi-label">Application Rate</div>
+      <div class="flex items-baseline gap-2 mt-2"><div id="fKpiRate" class="kpi-val">—</div><span class="text-xs text-slate-500">kg/Ha</span></div>
+      <div class="mt-2 text-xs text-slate-500">Blended dosage this period</div>
+    </div>
+    <div class="card p-5">
+      <div class="kpi-label">Distinct Products Used</div>
+      <div class="flex items-baseline gap-2 mt-2"><div id="fKpiTypes" class="kpi-val">—</div><span class="text-xs text-slate-500">SKUs</span></div>
+      <div class="mt-2 text-xs text-slate-500">Nama pupuk variants</div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="card p-5 lg:col-span-2">
+      <div class="text-sm font-semibold">Fertilizer Usage by Product (kg this period)</div>
+      <div class="text-xs text-slate-500 mb-2">Top drivers of nutrition spend</div>
+      <div id="fChartProduct" class="h-80"></div>
+    </div>
+    <div class="card p-5">
+      <div class="text-sm font-semibold">TM vs TBM Split</div>
+      <div class="text-xs text-slate-500 mb-2">Mature (TM) vs immature (TBM) allocation</div>
+      <div id="fChartStatus" class="h-80"></div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="card p-5">
+      <div class="text-sm font-semibold">Fertilizer by Estate (kg)</div>
+      <div class="text-xs text-slate-500 mb-2">Where is nutrition budget going?</div>
+      <div id="fChartEstate" class="h-80"></div>
+    </div>
+    <div class="card p-5">
+      <div class="text-sm font-semibold">Application Progress</div>
+      <div class="text-xs text-slate-500 mb-2">HI (day) vs s/d BI (month-to-date) vs SDBI cumulative — kg</div>
+      <div id="fChartProgress" class="h-80"></div>
+    </div>
+  </section>
+
+  <section class="card p-6">
+    <div class="text-sm font-semibold mb-3">Fertilizer Highlights</div>
+    <div id="fHighlights" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm"></div>
+  </section>
+</div>
+
+<!-- WEATHER / OPS PANEL -->
+<div class="tab-panel space-y-6" data-panel="ops">
+  <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="card p-5">
+      <div class="kpi-label">Rainfall (period total)</div>
+      <div class="flex items-baseline gap-2 mt-2"><div id="oKpiRain" class="kpi-val">—</div><span class="text-xs text-slate-500">mm</span></div>
+      <div class="mt-2 text-xs text-slate-500">Sum curah_hujan_hi</div>
+    </div>
+    <div class="card p-5">
+      <div class="kpi-label">Rain Days</div>
+      <div class="flex items-baseline gap-2 mt-2"><div id="oKpiRainDays" class="kpi-val">—</div><span class="text-xs text-slate-500">days</span></div>
+      <div class="mt-2 text-xs text-slate-500">Latest hari_hujan_sdbi (max)</div>
+    </div>
+    <div class="card p-5">
+      <div class="kpi-label">Attendance (TK Hadir)</div>
+      <div class="flex items-baseline gap-2 mt-2"><div id="oKpiHadir" class="kpi-val">—</div><span class="text-xs text-slate-500">%</span></div>
+      <div class="mt-2 text-xs text-slate-500">Workforce present</div>
+    </div>
+    <div class="card p-5">
+      <div class="kpi-label">Absent (TK Mangkir)</div>
+      <div class="flex items-baseline gap-2 mt-2"><div id="oKpiMangkir" class="kpi-val">—</div><span class="text-xs text-slate-500">%</span></div>
+      <div class="mt-2 text-xs text-slate-500">Watch for &gt;5%</div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="card p-5 lg:col-span-2">
+      <div class="text-sm font-semibold">Rainfall vs Tonnage — Correlation View</div>
+      <div class="text-xs text-slate-500 mb-2">Daily rainfall (bars) overlaid with harvest tonnage (line)</div>
+      <div id="oChartRainTon" class="h-80"></div>
+    </div>
+    <div class="card p-5">
+      <div class="text-sm font-semibold">Security Situation</div>
+      <div class="text-xs text-slate-500 mb-2">situasi_keamanan report counts</div>
+      <div id="oChartSec" class="h-80"></div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="card p-5">
+      <div class="text-sm font-semibold">Rainfall by Estate</div>
+      <div class="text-xs text-slate-500 mb-2">Distribution across sites</div>
+      <div id="oChartRainEstate" class="h-80"></div>
+    </div>
+    <div class="card p-5">
+      <div class="text-sm font-semibold">Attendance by Estate</div>
+      <div class="text-xs text-slate-500 mb-2">Hadir vs Mangkir stacked</div>
+      <div id="oChartAttend" class="h-80"></div>
+    </div>
+  </section>
+
+  <section class="card p-6">
+    <div class="text-sm font-semibold mb-3">Weather & Operations Highlights</div>
+    <div id="oHighlights" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm"></div>
+  </section>
+</div>
+
+  <footer class="text-center text-xs text-slate-600 py-6">
+    Data source: Google Sheet · Auto-refreshes on load · Built for palm oil senior management review
+  </footer>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

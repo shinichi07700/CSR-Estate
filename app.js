@@ -392,7 +392,7 @@ function renderFert(curFrom,curTo,cmpFrom,cmpTo,label,cmpLabel){
   const haHi = sum(cur.map(r=>r.haHi));
   const kgHiCmp = sum(cmp.map(r=>r.kgHi));
   const rate = haHi ? kgHi/haHi : 0;
-  const types = new Set(cur.filter(r=>r.kgHi>0||r.kgSdbi>0).map(r=>r.product)).size;
+  const types = new Set(cur.filter(r=>r.kgHi>0).map(r=>r.product)).size;
 
   document.getElementById("fKpiKg").textContent = (kgHi/1000).toFixed(2);
   document.getElementById("fKpiHa").textContent = fmt(haHi,1);
@@ -402,17 +402,14 @@ function renderFert(curFrom,curTo,cmpFrom,cmpTo,label,cmpLabel){
   if(kgHiCmp){ const p = pct(kgHi,kgHiCmp); dEl.textContent = `${p>=0?"▲":"▼"} ${Math.abs(p).toFixed(1)}% vs ${cmpLabel}`; dEl.className = "mono " + (p>=0?"delta-up":"delta-down"); }
   else dEl.textContent = "";
 
-  // By product (use s/d BI to always show meaningful data when HI is 0)
+  // By product
   const prodMap = new Map();
   cur.forEach(r=>{
     const key = r.product;
-    if(!prodMap.has(key)) prodMap.set(key,{p:key,kgHi:0,kgSdbi:0});
-    const o = prodMap.get(key); o.kgHi += r.kgHi; o.kgSdbi += r.kgSdbi;
+    if(!prodMap.has(key)) prodMap.set(key,{p:key,kgHi:0});
+    const o = prodMap.get(key); o.kgHi += r.kgHi;
   });
-  const prodsAll = Array.from(prodMap.values());
-  const usingHi = state.preset !== "ytd";
-  const sortKey = usingHi ? "kgHi" : "kgSdbi";
-  let prods = prodsAll.sort((a,b)=>b[sortKey]-a[sortKey]).slice(0,12);
+  let prods = Array.from(prodMap.values()).sort((a,b)=>b.kgHi-a.kgHi).slice(0,12);
   const chartProd = charts.fProd || (charts.fProd = echarts.init(document.getElementById("fChartProduct")));
   chartProd.setOption({
     ...baseOpt,
@@ -422,7 +419,7 @@ function renderFert(curFrom,curTo,cmpFrom,cmpTo,label,cmpLabel){
     yAxis:{type:"category",data:prods.map(p=>p.p).reverse(),axisLabel:{color:"#94a3b8",fontSize:10},axisLine:{lineStyle:{color:"#334155"}}},
     series:[{
       type:"bar",
-      data: prods.map(p=> usingHi ? p.kgHi : p.kgSdbi).reverse(),
+      data: prods.map(p=> p.kgHi).reverse(),
       itemStyle:{color:new echarts.graphic.LinearGradient(1,0,0,0,[{offset:0,color:"#a78bfa"},{offset:1,color:"#4c1d95"}]),borderRadius:[0,4,4,0]},
       label:{show:true,position:"right",color:"#cbd5e1",formatter:v=>fmt(v.value,0)}
     }]
@@ -430,7 +427,7 @@ function renderFert(curFrom,curTo,cmpFrom,cmpTo,label,cmpLabel){
 
   // TM vs TBM
   let tm=0, tbm=0;
-  cur.forEach(r=>{ const k = r.kgHi||r.kgSdbi; if(/TBM/i.test(r.status)) tbm+=k; else tm+=k; });
+  cur.forEach(r=>{ const k = r.kgHi; if(/TBM/i.test(r.status)) tbm+=k; else tm+=k; });
   const chartStatus = charts.fStatus || (charts.fStatus = echarts.init(document.getElementById("fChartStatus")));
   chartStatus.setOption({
     tooltip:{trigger:"item",backgroundColor:"#0b1220",borderColor:"#1e293b",textStyle:{color:"#e5edff"}, valueFormatter:v=>fmt(v,0)+" kg"},
@@ -448,7 +445,7 @@ function renderFert(curFrom,curTo,cmpFrom,cmpTo,label,cmpLabel){
 
   // By estate
   const estMap = new Map();
-  cur.forEach(r=>{ if(!estMap.has(r.kebun)) estMap.set(r.kebun,{k:r.kebun,kg:0}); estMap.get(r.kebun).kg += (r.kgHi||r.kgSdbi); });
+  cur.forEach(r=>{ if(!estMap.has(r.kebun)) estMap.set(r.kebun,{k:r.kebun,kg:0}); estMap.get(r.kebun).kg += r.kgHi; });
   const ests = Array.from(estMap.values()).sort((a,b)=>b.kg-a.kg);
   const chartEst = charts.fEst || (charts.fEst = echarts.init(document.getElementById("fChartEstate")));
   chartEst.setOption({
@@ -461,9 +458,14 @@ function renderFert(curFrom,curTo,cmpFrom,cmpTo,label,cmpLabel){
   }, true);
 
   // Progress: sum HI / SDHI / SDBI (kg)
+  const startOfMonth = new Date(curTo.getFullYear(), curTo.getMonth(), 1);
+  const startOfYear = new Date(curTo.getFullYear(), 0, 1);
+  const mtdRows = state.fert.filter(r => r.d >= startOfMonth && r.d <= curTo && (state.kebun === "__all" || r.kebun === state.kebun));
+  const ytdRows = state.fert.filter(r => r.d >= startOfYear && r.d <= curTo && (state.kebun === "__all" || r.kebun === state.kebun));
+
   const totHi   = sum(cur.map(r=>r.kgHi));
-  const totSdhi = sum(cur.map(r=>r.kgSdhi));
-  const totSdbi = sum(cur.map(r=>r.kgSdbi));
+  const totSdhi = sum(mtdRows.map(r=>r.kgHi));
+  const totSdbi = sum(ytdRows.map(r=>r.kgHi));
   const chartProg = charts.fProg || (charts.fProg = echarts.init(document.getElementById("fChartProgress")));
   chartProg.setOption({
     ...baseOpt,
@@ -482,8 +484,8 @@ function renderFert(curFrom,curTo,cmpFrom,cmpTo,label,cmpLabel){
 
   // Highlights
   const list = [];
-  if(kgHi===0 && totSdbi>0){
-    list.push({tone:"warn",t:"No fertilizer applied today",b:`No kg_hi logged in this period. Cumulative s/d BI is ${(totSdbi/1000).toFixed(1)}t — plan next application to stay on schedule.`});
+  if(kgHi===0){
+    list.push({tone:"warn",t:"No fertilizer applied in this period",b:"No active fertilizer applications (kg_hi) were logged in the selected period."});
   } else if(kgHi>0){
     list.push({tone:"good",t:"Active application",b:`${(kgHi/1000).toFixed(2)}t applied across ${fmt(haHi,1)} Ha (${fmt(rate,0)} kg/Ha blended rate).`});
   }

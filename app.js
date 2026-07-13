@@ -195,8 +195,10 @@ function byDay(rows){
   const m = new Map();
   rows.forEach(r=>{
     const k = r.date;
-    if(!m.has(k)) m.set(k,{date:k,ton:0});
-    m.get(k).ton += r.tonase;
+    if(!m.has(k)) m.set(k,{date:k,ton:0,hk:0});
+    const o = m.get(k);
+    o.ton += r.tonase;
+    o.hk += r.hk;
   });
   return Array.from(m.values()).sort((a,b)=>a.date.localeCompare(b.date));
 }
@@ -397,6 +399,24 @@ function render(){
       label:{color:"#cbd5e1",formatter:"{b}\n{d}%"},
       data: E.map((e,i)=>({name:e.kebun,value:+e.tonT.toFixed(1), itemStyle:{color:["#60a5fa","#2dd4bf","#a78bfa","#f59e0b","#22c55e","#ef4444","#38bdf8","#f472b6","#eab308"][i%9]}}))
     }]
+  }, true);
+
+  // Tonnage vs HK Panen Comparison
+  const tonHk = charts.tonHk || (charts.tonHk = echarts.init(document.getElementById("chartTonHk")));
+  tonHk.setOption({
+    ...baseOpt,
+    tooltip:{trigger:"axis",backgroundColor:"#0b1220",borderColor:"#1e293b",textStyle:{color:"#e5edff"}},
+    legend:{data:["Tonnage (t)","HK Panen"],textStyle:{color:"#94a3b8"},top:0},
+    grid:{left:40,right:50,top:34,bottom:30,containLabel:true},
+    xAxis:{type:"category",data:dCur.map(x=>x.date.slice(5)),axisLabel:{color:"#94a3b8",fontSize:10}},
+    yAxis:[
+      {type:"value",name:"Tonnage",nameTextStyle:{color:"#64748b"},axisLabel:{color:"#94a3b8",formatter:v=>(v/1000)+"t"},splitLine:{lineStyle:{color:"#1e293b"}}},
+      {type:"value",name:"HK Panen",nameTextStyle:{color:"#64748b"},axisLabel:{color:"#94a3b8"},splitLine:{show:false}}
+    ],
+    series:[
+      {name:"Tonnage (t)",type:"bar",data:dCur.map(x=>x.ton),itemStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:"#60a5fa"},{offset:1,color:"#1e3a8a"}]),borderRadius:[4,4,0,0]},barWidth:"45%"},
+      {name:"HK Panen",type:"line",yAxisIndex:1,data:dCur.map(x=>x.hk),smooth:true,symbolSize:7,lineStyle:{color:"#22c55e",width:3},itemStyle:{color:"#22c55e"}}
+    ]
   }, true);
 
   // Highlights
